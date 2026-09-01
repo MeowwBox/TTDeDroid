@@ -138,7 +138,7 @@ class Test_emulator_port(unittest.TestCase):
         apk_path = get_another_apk_path()
         shutil.copyfile(TEST_APK, apk_path)
         cache = os.path.dirname(apk_path)
-        output_file = os.path.join(cache, "classes-dex2jar.jar")
+        output_file = os.path.join(cache, "test/classes-dex2jar.jar")
         sh("python showjar.py -e fernflower -o %s -t 1 %s"%(cache, apk_path))
         self.assertTrue(os.path.exists(output_file))
         if os.path.exists(cache):

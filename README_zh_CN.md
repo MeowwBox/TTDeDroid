@@ -5,13 +5,13 @@
 
 一键反编译 **apk/aar/dex/jar**，没什么技术含量，只是调调工具命令，处理些兼容性问题，会视反编译库的更新情况更新工具版本。
 
-> - update at 2024-06-12
+> - update at 2026-09-01
 >
-> - jadx=1.4.7
+> - jadx=1.5.6
 > - Storyyeller/enjarify(build by source)
 > - dex2jar(build by source)
-> - fernflower=241.17890.1(IntelliJ IDEA official decompiler)
-> - apktool=2.9.3
+> - fernflower=262.9437.185(IntelliJ IDEA official decompiler)
+> - apktool=3.0.3
 
 
 # 使用要求
