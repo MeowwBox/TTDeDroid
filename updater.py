@@ -10,6 +10,7 @@ from typing import Tuple
 import zipfile
 import showjar
 import urllib.request
+import ssl
 import json
 import re
 from datetime import datetime, timedelta
@@ -112,7 +113,7 @@ def download_file(url, store_path):
             req = urllib.request.Request(url)
         else:
             raise ValueError from None
-        urllib.request.urlretrieve(req, store_path, reporthook=reporthook)
+        urllib.request.urlretrieve(req.get_full_url(), store_path, reporthook=reporthook)
         if not os.path.exists(store_path):
             print("download file failed: %s"%(store_path))
             return False
@@ -133,7 +134,7 @@ def download_release(repo_owner, repo_name, last_update_time, refile, destpath):
             req = urllib.request.Request(url)
         else:
             raise ValueError from None
-        with urllib.request.urlopen(req) as f:
+        with urllib.request.urlopen(req.get_full_url()) as f:
             response = json.loads(f.read().decode('utf-8'))
         publish_time = datetime.strptime(response['published_at'], '%Y-%m-%dT%H:%M:%SZ')
         # debug
@@ -266,13 +267,48 @@ def fernflower_updater():
         return
     ensure_dir(os.path.join(_SOURCE_DIR, 'fernflower'))
     os.chdir(os.path.join(_SOURCE_DIR, 'fernflower'))
-    run("mvn dependency:get -DrepoUrl=https://www.jetbrains.com/intellij-repository/releases/ \
-    -Dartifact=com.jetbrains.intellij.java:java-decompiler-engine:LATEST -Ddest=.")
+    # Try to resolve a concrete latest version from JetBrains metadata instead of using LATEST
+    version = 'LATEST'
+    try:
+        metadata_url_https = (
+            "https://www.jetbrains.com/intellij-repository/releases/"
+            "com/jetbrains/intellij/java/java-decompiler-engine/maven-metadata.xml"
+        )
+        metadata_url_http = metadata_url_https.replace("https://", "http://")
+        try:
+            meta = urllib.request.urlopen(metadata_url_https, context=ssl._create_unverified_context()).read().decode('utf-8')
+        except Exception:
+            meta = urllib.request.urlopen(metadata_url_http).read().decode('utf-8')
+
+        m = re.search(r"<release>([^<]+)</release>", meta)
+        if m:
+            version = m.group(1)
+        else:
+            m = re.search(r"<latest>([^<]+)</latest>", meta)
+            if m:
+                version = m.group(1)
+            else:
+                vs = re.findall(r"<version>([^<]+)</version>", meta)
+                if vs:
+                    version = vs[-1]
+    except Exception as e:
+        print("could not fetch maven metadata, falling back to LATEST: %s" % e)
+
+    artifact = "com.jetbrains.intellij.java:java-decompiler-engine:%s" % version
+    run("mvn dependency:get -DremoteRepositories=jetbrains::default::https://www.jetbrains.com/intellij-repository/releases/ -Dartifact=%s -Ddest=." % artifact)
     jars = glob.glob("%s/%s" % (os.getcwd(), "java-decompiler-engine*.jar"))
-    if not jars:
+    jar = None
+    if jars:
+        jar = jars[0]
+    else:
+        # fallback: check local maven repository
+        m2_path = os.path.expanduser(os.path.join('~', '.m2', 'repository'))
+        local_jar = os.path.join(m2_path, 'com', 'jetbrains', 'intellij', 'java', 'java-decompiler-engine', version, 'java-decompiler-engine-%s.jar' % version)
+        if os.path.exists(local_jar):
+            jar = local_jar
+    if not jar:
         print("expected jar is not found!")
         return
-    jar = jars[0]
     print("latest jar: %s"%(jar))
     shutil.copyfile(jar, showjar.fernflowerpath())
     os.chdir(rawdir)
